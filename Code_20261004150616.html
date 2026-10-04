@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<!-- v1.0 正式發布版（發布序號，非編輯次數）· 數據鍵 coinData_v1 · 管理按鈕入口 · 頁面內確認彈窗 -->
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>群金幣榜</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,"PingFang TC","Microsoft JhengHei",sans-serif;background:#f3f4f6;color:#222}
+  .app{max-width:480px;margin:0 auto;padding:18px 14px 30px;min-height:100vh}
+  header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  h1{font-size:24px;margin:0;letter-spacing:2px}
+  .manage-btn{padding:8px 14px;border-radius:12px;border:1px solid #ccc;background:#fff;font-size:14px;cursor:pointer}
+  sub{display:block;color:#888;font-size:12px;margin-top:2px}
+  .ver{text-align:center;color:#bbb;font-size:11px;margin-top:18px}
+  .card{background:#fff;border-radius:18px;padding:14px 16px;margin-bottom:12px;box-shadow:0 4px 14px rgba(0,0,0,.05)}
+  .row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid #eee;cursor:pointer}
+  .row:last-child{border:0}
+  .name{font-weight:700;font-size:17px}
+  .coin{color:#c99700;font-weight:800;font-size:18px}
+  .logs{margin-top:6px;color:#999;font-size:13px;padding-left:8px;border-left:3px solid #eee;display:none}
+  .log{margin:3px 0}
+  .admin{display:none;background:#fff;min-height:100vh;padding:18px 14px 30px;max-width:480px;margin:0 auto}
+  .admin h2{margin:0 0 4px}
+  .admin .verline{color:#bbb;font-size:11px;margin:0 0 10px}
+  .hint{font-size:12px;color:#999;text-align:center;margin-top:4px}
+  .admin label{display:block;margin:10px 0 4px;font-size:14px;color:#444}
+  .admin input,.admin select{width:100%;padding:11px;border-radius:12px;border:1px solid #ddd;font-size:15px;background:#fafafa}
+  .admin button{margin-top:14px;width:100%;padding:12px;border-radius:14px;border:0;background:#111;color:#fff;font-size:16px}
+  .admin .back{background:#eee;color:#222;margin-top:8px}
+  .admin .danger{background:#b91c1c;color:#fff;margin-top:18px}
+  .admin .danger:active{background:#7f1010}
+  .status{margin-top:10px;font-size:13px;color:#b91c1c;text-align:center;min-height:18px}
+  .modal-mask{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;align-items:center;justify-content:center;padding:24px}
+  .modal{background:#fff;border-radius:18px;padding:20px;max-width:320px;width:100%}
+  .modal p{margin:0 0 16px;font-size:15px;line-height:1.5}
+  .modal button{margin-top:0;width:48%;padding:11px;border-radius:12px;border:0;font-size:15px}
+  .modal .yes{background:#b91c1c;color:#fff;margin-right:4%}
+  .modal .no{background:#eee;color:#222}
+  .toast{position:fixed;left:50%;top:18px;transform:translateX(-50%);background:#222;color:#fff;padding:9px 14px;border-radius:10px;font-size:13px;opacity:0;transition:.25s;z-index:99}
+  .toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<div class="app" id="app">
+  <header>
+    <div>
+      <h1>群金幣榜</h1>
+      <sub>點名字展開交易記錄</sub>
+    </div>
+    <button type="button" class="manage-btn" onclick="askPassword()">管理</button>
+  </header>
+  <div id="list"></div>
+  <div class="ver">v1.0 正式發布版</div>
+  <div class="toast" id="toast"></div>
+</div>
+
+<div class="admin" id="admin">
+  <h2>管理空間</h2>
+  <div class="verline">v1.0 正式發布版</div>
+  <div class="hint">與榜單分開視圖</div>
+  <label>密碼</label>
+  <input id="pwd" type="password" placeholder="管理密碼">
+  <label>選人</label>
+  <select id="who"></select>
+  <label>動作</label>
+  <select id="act">
+    <option value="1">+1 分</option>
+    <option value="2">+2 分</option>
+    <option value="-1">-1 分</option>
+    <option value="-2">-2 分</option>
+  </select>
+  <label>原因 / 備註</label>
+  <input id="reason" placeholder="例如：10/4 emoji猜物參與">
+  <button type="button" onclick="loginAndSave()">確認送出</button>
+  <button type="button" class="danger" onclick="askClear()">清空榜單（開新一週）</button>
+  <button type="button" class="back" onclick="exitAdmin()">返回榜單</button>
+  <div class="status" id="adminStatus"></div>
+</div>
+
+<div class="modal-mask" id="clearModal">
+  <div class="modal">
+    <p>確定開新一週？<br>所有人分數歸零、交易記錄全刪（含 Ethan Ho），無法復原。</p>
+    <button type="button" class="yes" onclick="doClear()">確定清空</button>
+    <button type="button" class="no" onclick="closeClear()">取消</button>
+  </div>
+</div>
+
+<script>
+const PASS="Hayden20196046";
+const STORE_KEY="coinData_v1";
+
+const defaultNames=[
+  "陳諾熹","CC","Elizabeth","BLBLBLBL","Natalie梓瑜","浩然Harvey",
+  "유천유 Cassie Lao","小綿子 Arlene","???","珞妹 Avery",
+  "@遊戲機PRO","Winnie.Sio","Ethan Ho"
+];
+
+function buildDefault(){
+  return defaultNames.map(n=>({name:n,coin:0,logs:[]}));
+}
+function save(){localStorage.setItem(STORE_KEY,JSON.stringify(data));}
+
+let data=JSON.parse(localStorage.getItem(STORE_KEY)||"null");
+if(!data){ data=buildDefault(); save(); }
+
+function setStatus(msg){ document.getElementById("adminStatus").textContent=msg||""; }
+
+function render(){
+  document.getElementById("list").innerHTML=data.map(p=>`
+    <div class="card">
+      <div class="row" onclick="toggle(this)">
+        <div class="name">${p.name}</div>
+        <div class="coin">金幣 ${p.coin}</div>
+      </div>
+      <div class="logs">
+        ${p.logs.length
+          ? p.logs.map(l=>`<div class="log">${l.t} ${l.reason} ${l.delta>0?"+":""}${l.delta}</div>`).join("")
+          : '<div class="log">暫無交易記錄</div>'}
+      </div>
+    </div>`).join("");
+}
+
+function toggle(el){
+  const logs=el.parentElement.querySelector(".logs");
+  logs.style.display=logs.style.display==="block"?"none":"block";
+}
+
+function askPassword(){
+  document.getElementById("pwd").value="";
+  setStatus("");
+  document.getElementById("app").style.display="none";
+  document.getElementById("admin").style.display="block";
+  const s=document.getElementById("who");
+  s.innerHTML=data.map(p=>`<option>${p.name}</option>`).join("");
+  s.value="Ethan Ho";
+  document.getElementById("reason").value="";
+}
+
+function loginAndSave(){
+  if(document.getElementById("pwd").value!==PASS){setStatus("密碼錯，先填對才能送出");return;}
+  const who=document.getElementById("who").value;
+  const delta=Number(document.getElementById("act").value);
+  const reason=document.getElementById("reason").value||"手動調整";
+  const p=data.find(x=>x.name===who);
+  if(!p)return;
+  p.coin+=delta;
+  p.logs.unshift({t:new Date().toISOString().slice(0,10),reason,delta});
+  save();render();
+  setStatus("");
+  toast(who+" "+(delta>0?"+":"")+delta+" 已記");
+  setTimeout(exitAdmin,600);
+}
+
+function askClear(){
+  if(document.getElementById("pwd").value!==PASS){
+    setStatus("密碼錯，先填對才能清空");
+    return;
+  }
+  setStatus("已彈出確認框，請選「確定清空」");
+  document.getElementById("clearModal").style.display="flex";
+}
+
+function closeClear(){
+  document.getElementById("clearModal").style.display="none";
+  setStatus("已取消清空");
+}
+
+function doClear(){
+  document.getElementById("clearModal").style.display="none";
+  data=buildDefault();
+  save();
+  setStatus("✅ 已清空，正在刷新…");
+  toast("榜單已清空，開新一週");
+  setTimeout(()=>location.reload(),500);
+}
+
+function exitAdmin(){
+  document.getElementById("admin").style.display="none";
+  document.getElementById("app").style.display="block";
+  render();
+}
+
+function toast(m){
+  const t=document.getElementById("toast");
+  t.textContent=m;
+  t.classList.add("show");
+  setTimeout(()=>t.classList.remove("show"),1600);
+}
+
+render();
+</script>
+</body>
+</html>
